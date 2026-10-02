@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["62MP7PJ89J.com.volari.app"],
+        "components": [
+          { "/": "/accept-invite", "comment": "Invitation deep link (query carries the token)" },
+          { "/": "/accept-invite/*", "comment": "Invitation deep link, trailing-slash form" }
+        ]
+      }
+    ]
+  }
+}
