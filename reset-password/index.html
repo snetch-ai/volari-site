@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Reset your Volari password</title>
+  <meta name="description" content="Open your Volari password reset link.">
+  <style>
+    :root {
+      --bg: #fafafa; --fg: #1a1a2e; --muted: #6b6b80; --accent: #5b5bd6;
+      --card: #ffffff; --border: #e6e6ef;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0e0e16; --fg: #ececf4; --muted: #9a9ab0; --accent: #8a8af0; --card: #16161f; --border: #26263a; }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg); color: var(--fg);
+      font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 24px;
+    }
+    main { max-width: 560px; text-align: center; }
+    .mark {
+      width: 72px; height: 72px; margin: 0 auto 28px; border-radius: 18px;
+      background: linear-gradient(135deg, #2d1b69, #1a1040);
+      display: flex; align-items: center; justify-content: center;
+      color: #b8a6ff; font-size: 38px; font-weight: 700; font-style: italic;
+      font-family: Georgia, serif;
+    }
+    h1 { font-size: 28px; letter-spacing: -0.02em; margin-bottom: 12px; }
+    p { color: var(--muted); margin-bottom: 20px; }
+    ol { text-align: left; color: var(--fg); margin: 0 auto 28px; max-width: 420px; padding-left: 22px; }
+    ol li { margin-bottom: 10px; }
+    .btn {
+      display: inline-block; background: var(--accent); color: #fff; text-decoration: none;
+      font-weight: 600; padding: 14px 24px; border-radius: 12px; min-width: 220px;
+    }
+    .hidden { display: none; }
+    footer { margin-top: 48px; font-size: 14px; color: var(--muted); }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true">V</div>
+    <h1>Reset your password</h1>
+
+    <div id="with-token">
+      <p>If Volari is already on this phone, tap below to set a new password.</p>
+      <a id="open-app" class="btn" href="#">Open in Volari</a>
+      <p style="margin-top:28px">Don't have the app yet?</p>
+      <ol>
+        <li>Install Volari on this phone first.</li>
+        <li>Come back to this email and tap the reset link again.</li>
+      </ol>
+      <p>Reset links expire after a short time — if this one has expired, request a new one from the sign-in screen.</p>
+    </div>
+
+    <div id="no-token" class="hidden">
+      <p>This reset link is incomplete. Request a new one from the sign-in screen's "Forgot password?" link.</p>
+    </div>
+
+    <footer><a href="/">volariapp.com</a> · <a href="/privacy/">Privacy</a></footer>
+  </main>
+  <script>
+    (function () {
+      // The recovery token lives in the query string OR the hash fragment
+      // depending on the Supabase flow that issued the link — preserve
+      // whichever is present verbatim onto the app's custom-scheme link
+      // rather than parsing it here (the app does that parsing).
+      var search = window.location.search || '';
+      var hash = window.location.hash || '';
+      if (!search && !hash) {
+        document.getElementById('with-token').className = 'hidden';
+        document.getElementById('no-token').className = '';
+        return;
+      }
+      // Fallback for devices without universal-link support (or older builds
+      // without the associated-domains entitlement): the custom scheme the
+      // app has always handled.
+      var appUrl = 'volari://reset-password' + search + hash;
+      document.getElementById('open-app').setAttribute('href', appUrl);
+    })();
+  </script>
+</body>
+</html>

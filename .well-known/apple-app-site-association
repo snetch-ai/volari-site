@@ -5,7 +5,9 @@
         "appIDs": ["62MP7PJ89J.com.volari.app"],
         "components": [
           { "/": "/accept-invite", "comment": "Invitation deep link (query carries the token)" },
-          { "/": "/accept-invite/*", "comment": "Invitation deep link, trailing-slash form" }
+          { "/": "/accept-invite/*", "comment": "Invitation deep link, trailing-slash form" },
+          { "/": "/reset-password", "comment": "Password recovery deep link (token carried in the query or hash fragment)" },
+          { "/": "/reset-password/*", "comment": "Password recovery deep link, trailing-slash form" }
         ]
       }
     ]
