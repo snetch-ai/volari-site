@@ -26,7 +26,7 @@
       background: linear-gradient(135deg, #2d1b69, #1a1040);
       display: flex; align-items: center; justify-content: center;
       color: #b8a6ff; font-size: 38px; font-weight: 700; font-style: italic;
-      font-family: Georgia, serif;
+      font-family: Georgia, serif; overflow: hidden;
     }
     h1 { font-size: 28px; letter-spacing: -0.02em; margin-bottom: 12px; }
     p { color: var(--muted); margin-bottom: 20px; }
@@ -44,21 +44,25 @@
 </head>
 <body>
   <main>
-    <div class="mark" aria-hidden="true">V</div>
-    <h1>You're invited to Volari</h1>
+    <div class="mark" id="mark" aria-hidden="true">V</div>
+    <h1 id="heading">You're invited to Volari</h1>
+    <p id="role-copy" class="hidden"></p>
 
     <div id="with-token">
-      <p>If Volari is already on this phone, tap below to open your invitation.</p>
+      <p id="intro-copy">If Volari is already on this phone, tap below to open your invitation.</p>
       <a id="open-app" class="btn" href="#">Open in Volari</a>
-      <p style="margin-top:28px">Don't have the app yet?</p>
-      <ol>
-        <li>Install Volari on this phone from TestFlight (Apple's free app for pre-release apps):<br>
-          <a class="btn secondary" href="https://testflight.apple.com/join/Aw1P5pxV" rel="noopener">Install Volari</a>
-        </li>
-        <li>Open Volari once.</li>
-        <li>Come back here and tap <strong>Open in Volari</strong> above, or tap the invitation link again.</li>
-      </ol>
-      <p>Invitations are personal and expire after 15 days.</p>
+      <p id="status-message" class="hidden"></p>
+      <div id="install-block">
+        <p style="margin-top:28px">Don't have the app yet?</p>
+        <ol>
+          <li>Install Volari on this phone from TestFlight (Apple's free app for pre-release apps):<br>
+            <a class="btn secondary" href="https://testflight.apple.com/join/Aw1P5pxV" rel="noopener">Install Volari</a>
+          </li>
+          <li>Open Volari once.</li>
+          <li>Come back here and tap <strong>Open in Volari</strong> above, or tap the invitation link again.</li>
+        </ol>
+      </div>
+      <p id="expiry-line" class="hidden"></p>
     </div>
 
     <div id="no-token" class="hidden">
@@ -69,6 +73,18 @@
   </main>
   <script>
     (function () {
+      // PRD gym-branding-v1 D13/F2: this page previews a gym's branding by
+      // calling the PUBLIC, read-only `invite-preview` Edge Function on the
+      // PROD project only (this site is prod-only) — never `accept-invite`,
+      // which redeems and would leak invitee/athlete data (F2-AC8).
+      var SUPABASE_FUNCTIONS_URL = 'https://tmkewhiumjqanideevpj.supabase.co/functions/v1/invite-preview';
+      // Anon key: public by design (the same value already shipped inside
+      // the Volari app bundle) — fill in from the prod project's API
+      // settings before shipping. Until it is, every call fails and the
+      // page falls back to today's generic copy below (safe, never broken).
+      var SUPABASE_ANON_KEY = '<PROD_ANON_KEY>';
+      var PREVIEW_TIMEOUT_MS = 4000; // F2-AC6
+
       var params = new URLSearchParams(window.location.search);
       var token = params.get('token');
       if (!token) {
@@ -76,12 +92,133 @@
         document.getElementById('no-token').className = '';
         return;
       }
+
       // Fallback for devices without universal-link support (or older builds
       // without the associated-domains entitlement): the custom scheme the app
       // has always handled. iOS shows nothing if the app is not installed.
       var appUrl = 'volari://accept-invite?token=' + encodeURIComponent(token);
-      var btn = document.getElementById('open-app');
-      btn.setAttribute('href', appUrl);
+      var openBtn = document.getElementById('open-app');
+      openBtn.setAttribute('href', appUrl);
+
+      function formatExpiry(iso) {
+        try {
+          var parts = new Intl.DateTimeFormat('en-US', {
+            weekday: 'long', day: 'numeric', month: 'long',
+          }).formatToParts(new Date(iso));
+          var get = function (type) {
+            for (var i = 0; i < parts.length; i++) if (parts[i].type === type) return parts[i].value;
+            return '';
+          };
+          return get('weekday') + ' ' + get('day') + ' ' + get('month');
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      // F2-AC5/AC7: brand the header + role copy, then one of: the pending
+      // Open flow (unchanged install steps + a real expiry date), or a
+      // terminal status line (accepted/expired/revoked) in place of them.
+      function applyPreview(data) {
+        var heading = document.getElementById('heading');
+        var mark = document.getElementById('mark');
+        var roleCopy = document.getElementById('role-copy');
+        var statusMessage = document.getElementById('status-message');
+        var introCopy = document.getElementById('intro-copy');
+        var installBlock = document.getElementById('install-block');
+        var expiryLine = document.getElementById('expiry-line');
+
+        var gymName = data.gymName || 'your gym';
+
+        if (data.logoUrl) {
+          mark.innerHTML = '<img src="' + escapeHtml(data.logoUrl) + '" alt="' + escapeHtml(gymName) +
+            '" style="width:100%;height:100%;object-fit:contain;background:#fff;">';
+        } else {
+          mark.textContent = gymName.charAt(0).toUpperCase();
+          mark.style.fontStyle = 'normal';
+          mark.style.fontFamily = 'inherit';
+          if (data.accent) mark.style.background = data.accent;
+          if (data.accentFg) mark.style.color = data.accentFg;
+        }
+
+        if (data.accent) openBtn.style.background = data.accent;
+        if (data.accentFg) openBtn.style.color = data.accentFg;
+
+        heading.textContent = gymName + ' invited you';
+
+        if (data.status === 'pending') {
+          roleCopy.textContent = data.role === 'coach'
+            ? 'Join as a coach on Volari.'
+            : "Follow your gymnast's progress on Volari.";
+          roleCopy.className = '';
+
+          var expiryText = formatExpiry(data.expiresAt);
+          if (expiryText) {
+            expiryLine.textContent = 'This invitation works until ' + expiryText + '.';
+            expiryLine.className = '';
+          }
+          return;
+        }
+
+        // Terminal states (accepted/expired/revoked): replace the install
+        // flow with one status line. The Open button stays for 'accepted'
+        // (F2-AC7) and is hidden for 'expired'/'revoked' — there is nothing
+        // left to open.
+        introCopy.className = 'hidden';
+        installBlock.className = 'hidden';
+        statusMessage.className = '';
+
+        if (data.status === 'accepted') {
+          statusMessage.textContent = 'This invitation has already been used. Open Volari to sign in.';
+        } else if (data.status === 'expired') {
+          statusMessage.textContent = 'This invitation has expired. Ask ' + gymName + ' to send you a new one.';
+          openBtn.className = 'btn hidden';
+        } else if (data.status === 'revoked') {
+          statusMessage.textContent = 'This invitation is no longer active.';
+          openBtn.className = 'btn hidden';
+        } else {
+          // Unrecognized status: leave today's generic copy untouched.
+          statusMessage.className = 'hidden';
+          introCopy.className = '';
+          installBlock.className = '';
+        }
+      }
+
+      var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var timer = setTimeout(function () {
+        if (controller) controller.abort();
+      }, PREVIEW_TIMEOUT_MS);
+
+      // F2-AC6: ANY failure here — non-2xx (incl. the 404 invite-preview
+      // returns for an unknown token), timeout, or a network error — leaves
+      // today's generic copy exactly as it already renders above, with no
+      // error text and no expiry sentence. There is deliberately no retry.
+      fetch(SUPABASE_FUNCTIONS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ token: token }),
+        signal: controller ? controller.signal : undefined,
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('invite-preview ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.status) applyPreview(data);
+        })
+        .catch(function () {
+          /* generic fallback — see the comment above */
+        })
+        .then(function () {
+          clearTimeout(timer);
+        });
     })();
   </script>
 </body>
